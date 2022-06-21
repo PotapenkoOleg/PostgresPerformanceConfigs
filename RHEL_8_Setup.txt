@@ -25,6 +25,7 @@ vm.dirty_ratio = 10
 vm.dirty_background_ratio = 3
 vm.overcommit_memory=0
 net.ipv4.tcp_timestamps=0
+vm.nr_hugepages=300 #TODO: calculate this
 [vm]
 transparent_hugepages=never
 " > /etc/tuned/hppostgres/tuned.conf
