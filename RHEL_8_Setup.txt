@@ -1,0 +1,36 @@
+dnf -y install tuned
+systemctl enable --now tuned
+tuned-adm list
+tuned-adm recommend
+tuned-adm active
+---------------------------------------------
+#  This directory name will also be the
+#  name of the profile:
+mkdir /etc/tuned/hppostgres
+# Create the profile file:
+echo "
+[main]
+summary=Tuned profile for HP PostgreSQL Instances
+[bootloader]
+cmdline=transparent_hugepage=never
+[cpu]
+governor=performance
+energy_perf_bias=performance
+min_perf_pct=100
+[sysctl]
+vm.swappiness = 10
+vm.dirty_expire_centisecs = 500
+vm.dirty_writeback_centisecs = 250
+vm.dirty_ratio = 10
+vm.dirty_background_ratio = 3
+vm.overcommit_memory=0
+net.ipv4.tcp_timestamps=0
+[vm]
+transparent_hugepages=never
+" > /etc/tuned/hppostgres/tuned.conf
+---------------------------------------------
+sudo tuned-adm profile hppostgres
+sudo grub2-mkconfig -o /boot/grub2/grub.cfg
+---------------------------------------------
+systemctl start reboot.target
+
