@@ -1,0 +1,6 @@
+# Open /etc/fstab, and add noatime just near the defaults value for the drive that PostgreSQL data and WAL files are kept
+# Example: /dev/mapper/pgdata-01-data /pgdata xfs 	defaults,noatime 1 1
+# Example: /dev/mapper/rl-root / xfs     defaults,noatime        0 0
+-----------------------
+# sudo mount -o remount,noatime,nodiratime /pgdata
+# sudo mount -o remount,noatime,nodiratime /
