@@ -1,0 +1,4 @@
+archive_mode = on
+archive_command = 'rm -rf /opt/postgres/archive/* && cp %p /opt/postgres/archive/%f'
+restore_command = 'rm -rf /opt/postgres/data/* && cp /opt/postgres/archive/%f %p'
+# https://github.com/zalando/patroni/issues/1571
