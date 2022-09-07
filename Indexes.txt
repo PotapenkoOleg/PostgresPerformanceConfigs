@@ -1,0 +1,243 @@
+CREATE TABLE t_test (id serial, name text); 
+INSERT INTO t_test (name) SELECT 'hans' 
+   FROM generate_series(1, 2000000); 
+   INSERT INTO t_test (name) SELECT 'paul' 
+   FROM generate_series(1, 2000000); 
+   
+  SELECT name, count(*) FROM t_test GROUP BY 1;
+  SELECT * FROM t_test WHERE id = 432332; 
+  SET max_parallel_workers_per_gather TO 0; 
+  EXPLAIN SELECT * FROM t_test WHERE id = 432332;
+  
+ SELECT pg_relation_size('t_test') / 8192.0;
+ SHOW seq_page_cost; 
+ SHOW cpu_tuple_cost;
+ SHOW cpu_operator_cost;
+ SELECT 21622*1 + 4000000*0.01 + 4000000*0.0025; 
+ 
+CREATE INDEX idx_id ON t_test (id); 
+
+SELECT * FROM t_test WHERE id = 43242; 
+
+EXPLAIN SELECT * 
+               FROM  t_test 
+               ORDER BY id DESC  
+               LIMIT 10;  
+               
+ explain SELECT min(id), max(id) FROM t_test;
+ 
+explain SELECT * FROM t_test WHERE id = 30 OR id = 50;  
+
+CREATE INDEX idx_name ON t_test (name); 
+
+ EXPLAIN SELECT * FROM t_test WHERE name = 'hans2';
+ 
+EXPLAIN SELECT * 
+       FROM t_test 
+       WHERE name = 'hans' 
+             OR name = 'paul'; 
+             
+EXPLAIN SELECT * 
+       FROM t_test 
+       WHERE name = 'hans2' 
+             OR name = 'paul2';             
+            
+EXPLAIN (analyze true, buffers true, timing true) 
+            SELECT     * 
+            FROM     t_test 
+            WHERE     id < 10000;
+            
+CREATE TABLE t_random AS SELECT * FROM t_test ORDER BY random();  
+
+CREATE INDEX idx_random ON t_random (id); 
+
+vacuum analyze t_random;  
+ 
+
+EXPLAIN (analyze true, buffers true, timing true) 
+SELECT * FROM t_random WHERE id < 10000;
+        
+explain (analyze true,
+buffers true,
+timing true) 
+select
+	*
+from
+	t_random
+where
+	id < 10000;
+
+SELECT tablename, attname, correlation 
+       FROM  pg_stats 
+       WHERE tablename IN ('t_test', 't_random') 
+       ORDER BY 1, 2; 
+        
+      
+CLUSTER t_random USING idx_random; 
+
+EXPLAIN SELECT * FROM t_random WHERE id = 34234;  
+
+EXPLAIN SELECT id FROM t_random WHERE id = 34234;
+
+CREATE INDEX idx_random_name ON t_random (id) include (name);
+
+ CREATE INDEX idx_cos ON t_random (cos(id));
+ 
+EXPLAIN SELECT * FROM t_random WHERE cos(id) = 10;
+
+--DROP INDEX idx_name;
+
+CREATE INDEX idx_name_1 ON t_test (name) 
+ WHERE name NOT IN ('hans', 'paul');
+
+CREATE INDEX CONCURRENTLY idx_name2 ON t_test (name); 
+
+
+CREATE TABLE t_sva (sva text); 
+
+INSERT INTO t_sva VALUES ('1118090878');  
+INSERT INTO t_sva VALUES ('2345010477'); 
+
+
+CREATE OR REPLACE FUNCTION normalize_si(text) RETURNS text AS $$ 
+        BEGIN 
+        RETURN substring($1, 9, 2) || 
+               substring($1, 7, 2) ||
+               substring($1, 5, 2) ||
+               substring($1, 1, 4); 
+        END; $$ 
+LANGUAGE 'plpgsql' IMMUTABLE;
+
+SELECT normalize_si('1118090878'); 
+
+CREATE OR REPLACE FUNCTION si_lt(text, text) RETURNS boolean AS $$ 
+        BEGIN 
+             RETURN normalize_si($1) < normalize_si($2); 
+        END; 
+$$ LANGUAGE 'plpgsql' IMMUTABLE; 
+
+
+-- lower equals 
+CREATE OR REPLACE FUNCTION si_le(text, text)  
+  RETURNS boolean AS  
+$$  
+  BEGIN 
+    RETURN normalize_si($1) <= normalize_si($2);  
+  END; 
+$$  
+LANGUAGE 'plpgsql' IMMUTABLE; 
+ 
+-- greater equal 
+CREATE OR REPLACE FUNCTION si_ge(text, text)  
+  RETURNS boolean AS  
+$$  
+BEGIN 
+  RETURN normalize_si($1) >= normalize_si($2);  
+END; 
+$$  
+LANGUAGE 'plpgsql' IMMUTABLE; 
+ 
+-- greater 
+CREATE OR REPLACE FUNCTION si_gt(text, text)  
+  RETURNS boolean AS  
+$$  
+BEGIN 
+  RETURN normalize_si($1) > normalize_si($2);  
+END; 
+$$  
+LANGUAGE 'plpgsql' IMMUTABLE; 
+
+
+CREATE OPERATOR <# ( PROCEDURE=si_lt, 
+                     LEFTARG=text, 
+                     RIGHTARG=text); 
+CREATE OPERATOR <=# ( PROCEDURE=si_le, 
+                      LEFTARG=text, 
+                      RIGHTARG=text);
+
+CREATE OPERATOR >=# ( PROCEDURE=si_ge, 
+                      LEFTARG=text, 
+                      RIGHTARG=text);
+
+CREATE OPERATOR ># ( PROCEDURE=si_gt, 
+                     LEFTARG=text, 
+                     RIGHTARG=text);
+                     
+CREATE OR REPLACE FUNCTION si_same(text, text) RETURNS int AS $$
+        BEGIN 
+                IF normalize_si($1) < normalize_si($2) 
+                THEN 
+                        RETURN -1; 
+                ELSIF normalize_si($1) > normalize_si($2) 
+                THEN 
+                        RETURN +1; 
+                ELSE 
+                        RETURN 0; 
+                END IF; 
+        END; 
+$$ LANGUAGE 'plpgsql' IMMUTABLE;
+
+
+CREATE OPERATOR CLASS sva_special_ops 
+FOR TYPE text USING btree 
+AS 
+   OPERATOR 1 <# , 
+   OPERATOR 2 <=# , 
+   OPERATOR 3 = , 
+   OPERATOR 4 >=# , 
+   OPERATOR 5 ># , 
+
+   FUNCTION 1 si_same(text, text);
+   
+  CREATE INDEX idx_special ON t_sva (sva sva_special_ops);
+  
+ 
+ SET enable_seqscan TO off;
+ 
+explain SELECT * FROM t_sva WHERE sva = '0000112273';
+
+explain SELECT * FROM t_sva;
+
+SELECT * FROM pg_am;
+
+CREATE EXTENSION bloom;  
+
+CREATE TABLE t_bloom (x1 int, x2 int, x3 int, x4 int, x5 int, x6 int, x7 int);
+
+CREATE INDEX idx_bloom ON t_bloom USING bloom(x1, x2, x3, x4, x5, x6, x7); 
+
+SET enable_seqscan TO off; 
+
+ explain SELECT * FROM t_bloom WHERE x5 = 9 AND x3 = 7; 
+
+CREATE EXTENSION pg_trgm;  
+
+CREATE TABLE t_location (name text);
+
+COPY t_location FROM PROGRAM 
+         'curl https://www.cybertec-postgresql.com/secret/orte.txt';  
+
+SELECT * FROM t_location LIMIT 4; 
+
+SELECT 'abcde' <-> 'abdeacb'; 
+
+SELECT show_trgm('abcdef');
+
+SELECT *
+FROM t_location 
+ORDER BY name <-> 'Kramertneusiedel' 
+LIMIT 3; 
+
+CREATE INDEX idx_trgm ON t_location 
+      USING GiST(name GiST_trgm_ops);
+
+explain SELECT * 
+ FROM t_location 
+ ORDER BY name <-> 'Kramertneusiedel' 
+ LIMIT 5; 
+
+ explain SELECT * FROM t_location WHERE name LIKE '%neusi%'; 
+
+SELECT * FROM t_location WHERE name ~ '[A-C].*neu.*';
+
+
