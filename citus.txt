@@ -1,0 +1,1 @@
+https://stackoverflow.com/questions/73315208/citus-how-to-promote-metadatasynced-worker-to-coordinator-if-coordinator-complet
